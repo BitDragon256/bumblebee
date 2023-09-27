@@ -1,0 +1,29 @@
+line-wise, so an <expression> is a line
+a line is terminated by
+- ';' when not in a for loop
+- '}' after a block opened with '{'
+
+<document> ::= <expression>*
+<expression> ::= <instance-access> | <void-expression> | <return-expression> | <definition> ;
+
+<instance-access> ::= (<variable> | <function-call> .)* (<variable> | <function-call>)
+
+<void-expression> ::= <block> | <instance-expression>
+<return-expression> ::= <return-block> | <instance-expression>
+
+<definition> ::= (<type> | <auto-type>) <inline-definition>
+<inline-definition> ::= <variable> = (<return-expression> | <inline-definition>)
+<type> ::= int | uint | float | double | ...
+<auto-type> ::= let | var
+<var-name> ::= [a-zA-Z]+[a-zA-Z0-9_]*
+
+<block> ::= { <expression>* }
+<return-block> ::= { <expression>* return <return-expression> ; }
+<instance-expression> ::= (<instance-access> <operator>)* <instance-access>
+
+<operator> ::= <math-op> | <bool-op>
+<math-op> ::= + | - | * | /
+<bool-op> ::= && | || | ^^ | ==    // and or xor equal
+
+<variable> ::= <var-name>
+<function-call> ::= <var-name> ()
