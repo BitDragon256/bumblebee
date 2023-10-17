@@ -3,15 +3,17 @@
 
 #include <stdio.h>
 
-typedef struct {
-      uint16_t level;
-      const char* keyword;
-      const char** arguments;
-      bool opensBlock;
-} Line;
+void create_syntax_tree(const char** text, const char** out)
+{
 
-//find function for compiling c.
+}
+void create_identifiers(const char** text, const char** out)
+{
 
-int main(int argc, const char** argv) {
+}
+void 
+
+int main(int argc, const char** argv)
+{
       
 }
