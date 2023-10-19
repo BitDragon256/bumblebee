@@ -14,14 +14,28 @@ const char* keywordNames[KEYWORD_COUNT] = {
       "array"
 };
 
+/*
 const char* delimiters = "[];,. \"";
-const char* operators = "+-*/&%!^|~";
+const char* operators = "+-*&/%!^|";
+*/
 const char* numbers = "0123456789";
 
-typedef enum { eKeyword = 0, eIdentifier = 1, eDelimiter = 2, eNumber = 3, eNullToken = 4 } tokenType;
+size_t delimiterCount;
+char** delimiters;
+
+size_t operatorCount;
+char** operators;
+
+size_t keywordCount;
+char** keywords;
+
+size_t identifierCount;
+char** identifiers;
+
+typedef enum { eKeyword = 0, eIdentifier = 1, eDelimiter = 2, eOperator = 3, eNumber = 4, eNullToken = 5 } tokenType;
 // FOR DEBUGGING
-const char* tokenTypeNames[5] = {
-      "keyword", "identifier", "delimiter", "number", "nulltoken"
+const char* tokenTypeNames[6] = {
+      "keyword", "identifier", "delimiter", "operator", "number", "nulltoken"
 };
 
 typedef struct
@@ -96,13 +110,16 @@ int check_delimiters(char* buffer, token* t)
       // this requires the buffer to contain at least one character
       while (buffer[ptr + 1] != '\0') ptr++;
       ch = buffer[ptr];
-      if (
-            strchr(delimiters, ch) != NULL ||
-            strchr(operators, ch) != NULL
-      )
+      if (strchr(delimiters, ch) != NULL)
       {
             t->delimiter = ch;
             t->type = eDelimiter;
+            return 1;
+      }
+      else if (strchr(operators, ch) != NULL)
+      {
+            t->delimiter = ch;
+            t->type = eOperator;
             return 1;
       }
       return 0;
@@ -138,6 +155,7 @@ int check_numbers(char* buffer, token* t)
 {
       assert(buffer[0] != '\0');
 
+      t->type = eNumber;
       t->number = 0;
       int power = 1;
       char ch; int ptr = 0;
@@ -228,7 +246,7 @@ int lexical(const char* inputStream, token** tokenStream, char** errorString)
                   push(tokenStream, delToken);
                   clear_buffer(&bufferPtr, buffer);
 
-                  printf("delimiter found: \'%c\'\n", delToken);
+                  printf("delimiter found: \'%c\'\n", delToken.delimiter);
             }
             else if (check_numbers(buffer, &t))
             {
@@ -240,9 +258,77 @@ int lexical(const char* inputStream, token** tokenStream, char** errorString)
       }
 }
 
+void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
+{
+      int allocatedSize;
+      int ptr = 0;
+
+      if (size)
+            allocatedSize = (int) pow(2, ceil(log2(*size)));
+      else
+            allocatedSize = 1;
+
+      if (size + 1 > allocatedSize || allocatedSize == 1)
+      {
+            // reallocate the array
+            allocatedSize *= sizeMult;
+            void* newStream = malloc(allocatedSize * stride);
+            memcpy(newStream, dataStream, stride * *size);
+            if (*dataStream)
+                  free(*dataStream);
+            *dataStream = newStream;
+      }
+
+      memcpy((void*)(*dataStream + *size), elem, stride);
+      (*size)++;
+}
+
+void load_symbols()
+{
+      const char* filename = "lexan_symbols";
+      FILE* file = fopen(filename, 'r');
+      if (!file)
+      {
+            printf("file could not be opened");
+            return;
+      }
+      char ch;
+      char buffer[LEXICAL_ANALYSIS_BUFFER_SIZE];
+      int bufferPtr = 0;
+      tokenType type = eNullToken;
+      while ((ch = fgetc(file)) != EOF)
+      {
+            if (ch == '\n')
+            {
+                  switch (type)
+                  {
+                        case eDelimiter:
+                        push_data(&delimiters, &buffer, sizeof(char*), &delimiterCount);
+                        break;
+                        
+                        case eOperator:
+                        push_data(&operators, &buffer, sizeof(char*), &operatorCount);
+                        break;
+
+                        case eIdentifier:
+                        push_data(&identifiers, &buffer, sizeof(char*), &identifierCount);
+                        break;
+
+                        case eKeyword:
+                        push_data(&keywords, &buffer, sizeof(char*), &keywordCount);
+                  }
+                  bufferPtr = 0;
+                  buffer[]
+            }
+            buffer[bufferPtr++] = ch;
+            if (strcmp(buffer, "keywords"))
+      }
+      fclose(file);
+}
+
 int main(int argc, const char** argv)
 {
-      const char* input = "int a = 2;";
+      const char* input = "int a = 2+3;";
       token* tokenStream = create_token_stream();
       char* errorString;
 
