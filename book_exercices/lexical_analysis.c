@@ -19,6 +19,11 @@ const char* operators = "+-*/&%!^|~";
 const char* numbers = "0123456789";
 
 typedef enum { eKeyword = 0, eIdentifier = 1, eDelimiter = 2, eNumber = 3, eNullToken = 4 } tokenType;
+// FOR DEBUGGING
+const char* tokenTypeNames[5] = {
+      "keyword", "identifier", "delimiter", "number", "nulltoken"
+};
+
 typedef struct
 {
       keywords keyword;
@@ -245,7 +250,7 @@ int main(int argc, const char** argv)
 
       int ptr = -1;
       while (tokenStream[++ptr].type != eNullToken)
-            printf("%i ", tokenStream[ptr].type);
+            printf("%s ", tokenTypeNames[tokenStream[ptr].type]);
 
       destroy_token_stream(tokenStream);
       
