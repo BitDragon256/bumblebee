@@ -1,5 +1,6 @@
 #define KEYWORD_COUNT 4
 #define DELIMITER_COUNT 11
+#define OPERATOR_COUNT 13
 
 typedef enum {
       ekwIf,
@@ -58,3 +59,19 @@ typedef enum {
       eopXor,
       eopEquals
 } baseOperators;
+
+const char* opNames[OPERATOR_COUNT] = {
+      "+",
+      "-",
+      "*",
+      "/",
+      "%",
+      "=",
+      "&",
+      "|",
+      "^",
+      "&&",
+      "||",
+      "^^",
+      "=="
+};

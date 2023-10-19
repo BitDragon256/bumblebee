@@ -5,29 +5,9 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#define KEYWORD_COUNT 3
+#include "symbols.c"
 
-typedef enum { eIf = 0, eInt = 1, eArray = 2 } keywords;
-const char* keywordNames[KEYWORD_COUNT] = {
-      "if",
-      "int",
-      "array"
-};
-
-/*
-const char* delimiters = "[];,. \"";
-const char* operators = "+-*&/%!^|";
-*/
 const char* numbers = "0123456789";
-
-size_t delimiterCount;
-char** delimiters;
-
-size_t operatorCount;
-char** operators;
-
-size_t keywordCount;
-char** keywords;
 
 size_t identifierCount;
 char** identifiers;
@@ -89,7 +69,7 @@ int check_keywords(char* buffer, token* t)
 {
       for (int i = 0; i < KEYWORD_COUNT; i++)
       {
-            if (!strcmp(buffer, keywordNames[i]))
+            if (!strcmp(buffer, kwNames[i]))
             {
                   t->type = eKeyword;
                   t->keyword = i;
