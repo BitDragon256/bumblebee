@@ -138,7 +138,7 @@ int check_numbers(char* buffer, token* t)
       char ch; int ptr = 0;
       // set the ptr to the end of the string
       while (buffer[ptr + 1] != '\0') ptr++;
-      while (ptr-- > 0)
+      while (ptr >= 0)
       {
             ch = buffer[ptr];
 
@@ -152,6 +152,7 @@ int check_numbers(char* buffer, token* t)
             {
                   return 0;
             }
+            ptr--;
       }
       return 1;
 }
@@ -228,6 +229,8 @@ int lexical(const char* inputStream, token** tokenStream, char** errorString)
             {
                   push(tokenStream, t);
                   clear_buffer(&bufferPtr, buffer);
+
+                  printf("number found: %i\n", t.number);
             }
       }
 }
