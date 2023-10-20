@@ -5,67 +5,15 @@
 #include <stdlib.h>
 #include <assert.h>
 
-#include "symbols.c"
+#include "symbols.h"
+#include "TokenStream.h"
 
 const char* numbers = "0123456789";
 
 size_t identifierCount;
 char** identifiers;
 
-typedef enum { eKeyword = 0, eIdentifier = 1, eDelimiter = 2, eOperator = 3, eNumber = 4, eNullToken = 5 } tokenType;
-// FOR DEBUGGING
-const char* tokenTypeNames[6] = {
-      "keyword", "identifier", "delimiter", "operator", "number", "nulltoken"
-};
-
-typedef struct
-{
-      keywords keyword;
-      char* identifier;
-      char delimiter; // delimiters & operators
-      int64_t number;
-      tokenType type;
-} token;
-
-token* create_token_stream()
-{
-      token* stream = malloc(sizeof(token));
-      stream->type = eNullToken;
-      return stream;
-}
-void destroy_token_stream(token* tokenStream)
-{
-      if (tokenStream)
-            free(tokenStream);
-}
-
-const int sizeMult = 2;
-void push(token** tokenStream, token elem)
-{
-      int allocatedSize;
-      int ptr = 0;
-      while((*tokenStream)[ptr++].type != eNullToken);
-
-      allocatedSize = (int) pow(2, ceil(log2(ptr)));
-
-      if (ptr + 1 > allocatedSize)
-      {
-            // reallocate the array
-            while (ptr + 1 > allocatedSize)
-                  allocatedSize *= sizeMult;
-            token* newStream = malloc(allocatedSize * sizeof(token));
-            for (int i = 0; i < ptr - 1; i++)
-                  newStream[i] = (*tokenStream)[i];
-            if (tokenStream)
-                  free(*tokenStream);
-            *tokenStream = newStream;
-      }
-
-      (*tokenStream)[ptr - 1] = elem;
-      (*tokenStream)[ptr].type = eNullToken;
-}
-
-int check_keywords(char* buffer, token* t)
+int check_keywords(char* buffer, Token t)
 {
       for (int i = 0; i < KEYWORD_COUNT; i++)
       {
@@ -79,32 +27,90 @@ int check_keywords(char* buffer, token* t)
 
       return 0;
 }
-// checks for delimiters, this includes operators
-int check_delimiters(char* buffer, token* t)
+// // checks for delimiters, this includes operators
+// int check_delimiters(char* buffer, Token t)
+// {
+//       assert(buffer[0] != '\0');
+
+//       int ptr = 0;
+//       char ch;
+
+//       // this requires the buffer to contain at least one character
+//       while (buffer[ptr + 1] != '\0') ptr++;
+//       ch = buffer[ptr];
+//       if (strchr(delNames, ch) != NULL)
+//       {
+//             t->delimiter = ch;
+//             t->type = eDelimiter;
+//             return 1;
+//       }
+//       else if (strchr(opNames, ch) != NULL)
+//       {
+//             t->delimiter = ch;
+//             t->type = eOperator;
+//             return 1;
+//       }
+//       return 0;
+// }
+
+int check_delimiters(char* buffer, Token t)
 {
-      assert(buffer[0] != '\0');
+      const int bufLen = strlen(buffer);
+      int delIndex[DELIMITER_COUNT];
+      memset(delIndex, 0, DELIMITER_COUNT * sizeof(int));
 
-      int ptr = 0;
-      char ch;
+      int delimiterPossibleCount = 0;
 
-      // this requires the buffer to contain at least one character
-      while (buffer[ptr + 1] != '\0') ptr++;
-      ch = buffer[ptr];
-      if (strchr(delimiters, ch) != NULL)
+      for (int bufI = 0; bufI < bufLen; bufI++)
       {
-            t->delimiter = ch;
-            t->type = eDelimiter;
+            for (int delI = 0; delI < DELIMITER_COUNT; delI++)
+            {
+                  if (delIndex[delI] == -1)
+                        continue;
+                  
+                  if (buffer[bufI] == delNames[delI][delIndex[delI]])
+                        delIndex[delI]++;
+                  else
+                        delIndex[delI] = 0;
+                        
+                  if (delIndex[delI] >= strlen(delNames[delI]))
+                  {
+                        delimiterPossibleCount++;
+                        delIndex[delI] = -1;
+                        continue;
+                  }
+            }
+      }
+      // return 0 if there are unfinished delimiters
+      for (int delI = 0; delI < DELIMITER_COUNT; delI++)
+            if (delIndex[delI] > 0)
+                  return 0;
+      
+      t->type = eDelimiter;
+      if (delimiterPossibleCount)
+      {
+            // get the longest delimiter
+            int longest = -1;
+
+            for (int delI = 0; delI < DELIMITER_COUNT; delI++)
+            {
+                  if (delIndex[delI] != -1)
+                        continue;
+
+                  const int len = strlen(delNames[delI]);
+                  if (len > longest)
+                  {
+                        t->delimiter = delI;
+                        longest = len;
+                  }
+            }
             return 1;
       }
-      else if (strchr(operators, ch) != NULL)
-      {
-            t->delimiter = ch;
-            t->type = eOperator;
-            return 1;
-      }
+      
+      // no delimiter found
       return 0;
 }
-int check_identifiers(char* buffer, token* t)
+int check_identifiers(char* buffer, Token t)
 {
       int size = 0;
       while (buffer[size++] != '\0');
@@ -131,7 +137,7 @@ int char_to_digit(const char ch)
 }
 
 // only supports integers
-int check_numbers(char* buffer, token* t)
+int check_numbers(char* buffer, Token t)
 {
       assert(buffer[0] != '\0');
 
@@ -175,7 +181,7 @@ void clear_buffer(int* end, char* buffer)
 #define LA_NO_VALID_LITERAL 102
 
 #define LEXICAL_ANALYSIS_BUFFER_SIZE 30
-int lexical(const char* inputStream, token** tokenStream, char** errorString)
+int lexical(const char* inputStream, TokenStream TokenStream, char** errorString)
 {
       char buffer[LEXICAL_ANALYSIS_BUFFER_SIZE];
       int bufferPtr = LEXICAL_ANALYSIS_BUFFER_SIZE;
@@ -190,7 +196,7 @@ int lexical(const char* inputStream, token** tokenStream, char** errorString)
 
       while ((cur = inputStream[inputPtr++]) != '\0')
       {
-            token t;
+            Token t = create_token();
 
             if (bufferPtr >= LEXICAL_ANALYSIS_BUFFER_SIZE)
             {
@@ -201,43 +207,32 @@ int lexical(const char* inputStream, token** tokenStream, char** errorString)
 
             printf("next char: %c | complete buffer: %s | ptr: %i", cur, buffer, bufferPtr - 1);
             printf("\n");
+            
 
-            if (check_keywords(buffer, &t))
+            if (check_delimiters(buffer, t))
             {
-                  push(tokenStream, t);
-                  clear_buffer(&bufferPtr, buffer);
-
-                  printf("keyword found: %s\n", keywordNames[t.keyword]);
-            }
-            else if (check_delimiters(buffer, &t))
-            {
-                  token delToken = t;
+                  Token delToken = create_token();
+                  assign_token(delToken, t);
                   if (bufferPtr > 1)
                   {
                         // there are unrecognized literals in front of the delimiter
-                        buffer[bufferPtr - 1] = '\0';
-                        if (check_keywords(buffer, &t));
-                        else if (check_numbers(buffer, &t));
-                        else if (check_identifiers(buffer, &t));
+                        buffer[bufferPtr - strlen(delNames[delToken->delimiter])] = '\0';
+                        if (check_keywords(buffer, t));
+                        else if (check_numbers(buffer, t));
+                        else if (check_identifiers(buffer, t));
                         else return LA_NO_VALID_LITERAL;
 
-                        push(tokenStream, t);
+                        push_token_stream(TokenStream, t);
                   }
-                  push(tokenStream, delToken);
+                  push_token_stream(TokenStream, delToken);
                   clear_buffer(&bufferPtr, buffer);
 
-                  printf("delimiter found: \'%c\'\n", delToken.delimiter);
-            }
-            else if (check_numbers(buffer, &t))
-            {
-                  push(tokenStream, t);
-                  clear_buffer(&bufferPtr, buffer);
-
-                  printf("number found: %i\n", t.number);
+                  printf("delimiter found: \'%s\'\n", delNames[delToken->delimiter]);
             }
       }
 }
 
+const int sizeMult = 2;
 void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
 {
       int allocatedSize;
@@ -248,7 +243,7 @@ void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
       else
             allocatedSize = 1;
 
-      if (size + 1 > allocatedSize || allocatedSize == 1)
+      if (*size + 1 > allocatedSize || allocatedSize == 1)
       {
             // reallocate the array
             allocatedSize *= sizeMult;
@@ -263,62 +258,21 @@ void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
       (*size)++;
 }
 
-void load_symbols()
-{
-      const char* filename = "lexan_symbols";
-      FILE* file = fopen(filename, 'r');
-      if (!file)
-      {
-            printf("file could not be opened");
-            return;
-      }
-      char ch;
-      char buffer[LEXICAL_ANALYSIS_BUFFER_SIZE];
-      int bufferPtr = 0;
-      tokenType type = eNullToken;
-      while ((ch = fgetc(file)) != EOF)
-      {
-            if (ch == '\n')
-            {
-                  switch (type)
-                  {
-                        case eDelimiter:
-                        push_data(&delimiters, &buffer, sizeof(char*), &delimiterCount);
-                        break;
-                        
-                        case eOperator:
-                        push_data(&operators, &buffer, sizeof(char*), &operatorCount);
-                        break;
-
-                        case eIdentifier:
-                        push_data(&identifiers, &buffer, sizeof(char*), &identifierCount);
-                        break;
-
-                        case eKeyword:
-                        push_data(&keywords, &buffer, sizeof(char*), &keywordCount);
-                  }
-                  bufferPtr = 0;
-                  buffer[]
-            }
-            buffer[bufferPtr++] = ch;
-            if (strcmp(buffer, "keywords"))
-      }
-      fclose(file);
-}
-
 int main(int argc, const char** argv)
 {
-      const char* input = "int a = 2+3;";
-      token* tokenStream = create_token_stream();
+      const char* input = "abc;;def";
+      TokenStream TokenStream = create_token_stream();
       char* errorString;
 
-      lexical(input, &tokenStream, &errorString);
+      lexical(input, TokenStream, &errorString);
 
-      int ptr = -1;
-      while (tokenStream[++ptr].type != eNullToken)
-            printf("%s ", tokenTypeNames[tokenStream[ptr].type]);
+      Token it = TokenStream->start;
+      if (it)
+            printf("%s ", tokenTypeNames[it->type]);
+      while (next_token(&it))
+            printf("%s ", tokenTypeNames[it->type]);
 
-      destroy_token_stream(tokenStream);
+      destroy_token_stream(TokenStream);
       
       return 0;
 }
