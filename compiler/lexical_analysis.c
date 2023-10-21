@@ -53,62 +53,84 @@ int check_keywords(char* buffer, Token t)
 //       return 0;
 // }
 
-int check_delimiters(char* buffer, Token t)
+#define LAZY_CHECK_NOTHING -1
+int lazy_check(char* buffer, const char** symbolNames, const size_t nameLen)
 {
       const int bufLen = strlen(buffer);
-      int delIndex[DELIMITER_COUNT];
-      memset(delIndex, 0, DELIMITER_COUNT * sizeof(int));
+      int* dataIndex = malloc(nameLen * sizeof(int));
+      memset(dataIndex, 0, nameLen * sizeof(int));
 
-      int delimiterPossibleCount = 0;
+      int possibleCount;
 
       for (int bufI = 0; bufI < bufLen; bufI++)
       {
-            for (int delI = 0; delI < DELIMITER_COUNT; delI++)
+            for (int dataI = 0; dataI < nameLen; dataI++)
             {
-                  if (delIndex[delI] == -1)
+                  if (dataIndex[dataI] == -1)
                         continue;
                   
-                  if (buffer[bufI] == delNames[delI][delIndex[delI]])
-                        delIndex[delI]++;
+                  if (buffer[bufI] == symbolNames[dataI][dataIndex[dataI]])
+                        dataIndex[dataI]++;
                   else
-                        delIndex[delI] = 0;
+                        dataIndex[dataI] = 0;
                         
-                  if (delIndex[delI] >= strlen(delNames[delI]))
+                  if (dataIndex[dataI] >= strlen(symbolNames[dataI]))
                   {
-                        delimiterPossibleCount++;
-                        delIndex[delI] = -1;
+                        possibleCount++;
+                        dataIndex[dataI] = -1;
                         continue;
                   }
             }
       }
-      // return 0 if there are unfinished delimiters
-      for (int delI = 0; delI < DELIMITER_COUNT; delI++)
-            if (delIndex[delI] > 0)
-                  return 0;
+      // return LAZY_CHECK_NOTHING if there are unfinished symbols
+      for (int dataI = 0; dataI < nameLen; dataI++)
+            if (dataIndex[dataI] > 0)
+                  return LAZY_CHECK_NOTHING;
       
-      t->type = eDelimiter;
-      if (delimiterPossibleCount)
+      if (possibleCount)
       {
-            // get the longest delimiter
+            // get the longest symbol
             int longest = -1;
+            int symbolData = -1;
 
-            for (int delI = 0; delI < DELIMITER_COUNT; delI++)
+            for (int dataI = 0; dataI < nameLen; dataI++)
             {
-                  if (delIndex[delI] != -1)
+                  if (dataIndex[dataI] != -1)
                         continue;
 
-                  const int len = strlen(delNames[delI]);
+                  const int len = strlen(symbolNames[dataI]);
                   if (len > longest)
                   {
-                        t->delimiter = delI;
+                        symbolData = dataI;
                         longest = len;
                   }
             }
-            return 1;
+            return symbolData;
       }
       
       // no delimiter found
-      return 0;
+      return LAZY_CHECK_NOTHING;
+}
+
+int check_delimiters(char* buffer, Token t)
+{
+      int result = lazy_check(buffer, delNames, DELIMITER_COUNT);
+      if (result == -1)
+            return 0;
+      
+      t->delimiter = result;
+      t->type = eDelimiter;
+      return 1;
+}
+int check_operators(char* buffer, Token t)
+{
+      int result = lazy_check(buffer, opNames, OPERATOR_COUNT);
+      if (result == -1)
+            return 0;
+
+      t->operator = result;
+      t->type = eOperator;
+      return 1;
 }
 int check_identifiers(char* buffer, Token t)
 {
@@ -260,7 +282,7 @@ void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
 
 int main(int argc, const char** argv)
 {
-      const char* input = "abc;;def";
+      const char* input = "abc;;def\n";
       TokenStream TokenStream = create_token_stream();
       char* errorString;
 
