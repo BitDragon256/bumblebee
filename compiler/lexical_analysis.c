@@ -6,7 +6,7 @@
 #include <assert.h>
 
 #include "symbols.h"
-#include "TokenStream.h"
+#include "tokenStream.h"
 
 const char* numbers = "0123456789";
 
@@ -64,7 +64,7 @@ int lazy_check(char* buffer, const char** symbolNames, const size_t nameLen)
 
       for (int bufI = 0; bufI < bufLen; bufI++)
       {
-            for (int dataI = 0; dataI < nameLen; dataI++)
+            for (size_t dataI = 0; dataI < nameLen; dataI++)
             {
                   if (dataIndex[dataI] == -1)
                         continue;
@@ -74,7 +74,7 @@ int lazy_check(char* buffer, const char** symbolNames, const size_t nameLen)
                   else
                         dataIndex[dataI] = 0;
                         
-                  if (dataIndex[dataI] >= strlen(symbolNames[dataI]))
+                  if (dataIndex[dataI] >= (int) strlen(symbolNames[dataI]))
                   {
                         possibleCount++;
                         dataIndex[dataI] = -1;
@@ -83,25 +83,25 @@ int lazy_check(char* buffer, const char** symbolNames, const size_t nameLen)
             }
       }
       // return LAZY_CHECK_NOTHING if there are unfinished symbols
-      for (int dataI = 0; dataI < nameLen; dataI++)
+      for (size_t dataI = 0; dataI < nameLen; dataI++)
             if (dataIndex[dataI] > 0)
                   return LAZY_CHECK_NOTHING;
       
       if (possibleCount)
       {
             // get the longest symbol
-            int longest = -1;
+            size_t longest = 0;
             int symbolData = -1;
 
-            for (int dataI = 0; dataI < nameLen; dataI++)
+            for (size_t dataI = 0; dataI < nameLen; dataI++)
             {
                   if (dataIndex[dataI] != -1)
                         continue;
 
-                  const int len = strlen(symbolNames[dataI]);
+                  const size_t len = strlen(symbolNames[dataI]);
                   if (len > longest)
                   {
-                        symbolData = dataI;
+                        symbolData = (int) dataI;
                         longest = len;
                   }
             }
@@ -203,7 +203,7 @@ void clear_buffer(int* end, char* buffer)
 #define LA_NO_VALID_LITERAL 102
 
 #define LEXICAL_ANALYSIS_BUFFER_SIZE 30
-int lexical(const char* inputStream, TokenStream TokenStream, char** errorString)
+int lexical(const char* inputStream, TokenStream tokenStream, char** errorString)
 {
       char buffer[LEXICAL_ANALYSIS_BUFFER_SIZE];
       int bufferPtr = LEXICAL_ANALYSIS_BUFFER_SIZE;
@@ -211,18 +211,22 @@ int lexical(const char* inputStream, TokenStream TokenStream, char** errorString
       char cur;
       int inputPtr = 0;
 
-      int streamSize = 0;
-
       printf("lexical analysis start\n");
       printf("input stream: \"%s\"\n", inputStream);
 
+      // ERROR is no error
+      int ERROR = 0;
+
+      Token t = NULL;
       while ((cur = inputStream[inputPtr++]) != '\0')
       {
-            Token t = create_token();
+            if (!t)
+                  t = create_token();
 
             if (bufferPtr >= LEXICAL_ANALYSIS_BUFFER_SIZE)
             {
-                  return LA_BUFFER_SIZE_EXCEEDED;
+                  ERROR = LA_BUFFER_SIZE_EXCEEDED;
+                  break;
             }
 
             buffer[bufferPtr++] = cur;
@@ -230,38 +234,62 @@ int lexical(const char* inputStream, TokenStream TokenStream, char** errorString
             printf("next char: %c | complete buffer: %s | ptr: %i", cur, buffer, bufferPtr - 1);
             printf("\n");
             
-
+            size_t delLen = 0;
             if (check_delimiters(buffer, t))
+            {
+                  delLen = strlen(delNames[t->delimiter]);
+
+                  printf("delimiter found: \'%s\'\n", delNames[t->delimiter]);
+            }
+            else if (check_operators(buffer, t))
+            {
+                  delLen = strlen(opNames[t->operator]);
+
+                  printf("operator found: \'%s\'\n", opNames[t->operator]);
+            }
+
+            if (delLen > 0)
             {
                   Token delToken = create_token();
                   assign_token(delToken, t);
                   if (bufferPtr > 1)
                   {
                         // there are unrecognized literals in front of the delimiter
-                        buffer[bufferPtr - strlen(delNames[delToken->delimiter])] = '\0';
+                        buffer[bufferPtr - delLen] = '\0';
                         if (check_keywords(buffer, t));
                         else if (check_numbers(buffer, t));
                         else if (check_identifiers(buffer, t));
-                        else return LA_NO_VALID_LITERAL;
+                        else
+                        {
+                              ERROR = LA_NO_VALID_LITERAL;
+                              break;
+                        }
 
-                        push_token_stream(TokenStream, t);
+                        push_token_stream(tokenStream, t);
                   }
-                  push_token_stream(TokenStream, delToken);
+                  push_token_stream(tokenStream, delToken);
                   clear_buffer(&bufferPtr, buffer);
-
-                  printf("delimiter found: \'%s\'\n", delNames[delToken->delimiter]);
+                  
+                  t = NULL;
             }
       }
+      
+      if (!t)
+            t = create_token();
+      if (check_identifiers(buffer, t))
+            push_token_stream(tokenStream, t);
+      clear_buffer(&bufferPtr, buffer);
+      
+      return ERROR;
 }
 
 const int sizeMult = 2;
 void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
 {
-      int allocatedSize;
-      int ptr = 0;
+      size_t allocatedSize;
 
       if (size)
-            allocatedSize = (int) pow(2, ceil(log2(*size)));
+            allocatedSize = (size_t) pow(2, ceil(log2(*size)));
       else
             allocatedSize = 1;
 
@@ -282,19 +310,22 @@ void push_data(void** dataStream, void* elem, const size_t stride, size_t* size)
 
 int main(int argc, const char** argv)
 {
-      const char* input = "abc;;def\n";
-      TokenStream TokenStream = create_token_stream();
+      const char* input = "abc==def";
+      TokenStream tokenStream = create_token_stream();
       char* errorString;
 
-      lexical(input, TokenStream, &errorString);
+      lexical(input, tokenStream, &errorString);
 
-      Token it = TokenStream->start;
+      Token it = tokenStream->start;
       if (it)
             printf("%s ", tokenTypeNames[it->type]);
       while (next_token(&it))
             printf("%s ", tokenTypeNames[it->type]);
 
-      destroy_token_stream(TokenStream);
+      destroy_token_stream(tokenStream);
+
+      printf("\nPress Enter to exit ");
+      getchar();
       
       return 0;
 }
