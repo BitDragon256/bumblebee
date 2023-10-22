@@ -1,2 +1,4 @@
 compiler.exe
 .vscode/*
+*.exe
+*.gch
